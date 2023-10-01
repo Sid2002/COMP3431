@@ -35,14 +35,7 @@ WallFollower::WallFollower()
 	scan_data_[0] = 0.0;
 	scan_data_[1] = 0.0;
 	scan_data_[2] = 0.0;
-	right_data_[0] = 0.0;
-	right_data_[1] = 0.0;
-	right_data_[2] = 0.0;
 
-	tuple<double, double> position;
-	position = make_tuple(0.0, 0.0);
-	visited.push_back(position);
-	rotations = 0;
 	robot_pose_ = 0.0;
 	prev_robot_pose_ = 0.0;
 
@@ -68,7 +61,7 @@ WallFollower::WallFollower()
 	/************************************************************
 	** Initialise ROS timers
 	************************************************************/
-	update_timer_ = this->create_wall_timer(10ms, std::bind(&WallFollower::update_callback, this));
+	update_timer_ = this->create_wall_timer(30ms, std::bind(&WallFollower::update_callback, this));
 
 	RCLCPP_INFO(this->get_logger(), "Wall follower node has been initialised");
 }
@@ -97,27 +90,14 @@ void WallFollower::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
 
 void WallFollower::scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
-	uint16_t scan_angle[3] = {0, 30, 330};
-	uint16_t right_angle[3] = {270, 300, 240};
-
+	uint16_t scan_angle[3] = {0, 90, 270};
 	
 	for (int num = 0; num < 3; num++)
 	{
-		if (std::isinf(msg->ranges.at(scan_angle[num])))
-		{
+		if (std::isinf(msg->ranges.at(scan_angle[num]))) {
 			scan_data_[num] = msg->range_max;
-		}
-		else
-		{
+		} else {
 			scan_data_[num] = msg->ranges.at(scan_angle[num]);
-		}
-		if (std::isinf(msg->ranges.at(right_angle[num])))
-		{
-			right_data_[num] = msg->range_max;
-		}
-		else
-		{
-			right_data_[num] = msg->ranges.at(right_angle[num]);
 		}
 	}
 }
@@ -136,50 +116,25 @@ void WallFollower::update_cmd_vel(double linear, double angular)
 ********************************************************************************/
 void WallFollower::update_callback()
 {
-	static uint8_t turtlebot3_state_num = 0;
+	static uint8_t turtlebot3_state_num = GET_TB3_DIRECTION;
 	double escape_range = 30.0 * DEG2RAD;
 	double check_forward_dist = 0.7;
-	double check_side_dist = 0.6;
+	//double check_side_dist = 0.6;
 
 	switch (turtlebot3_state_num)
 	{
 		case GET_TB3_DIRECTION:
-			/*if (scan_data_[CENTER] > check_forward_dist)
-			{
-				if (scan_data_[LEFT] < check_side_dist)
-				{
-					prev_robot_pose_ = robot_pose_;
-					turtlebot3_state_num = TB3_RIGHT_TURN;
-					rotations+=1;
-				}
-				else if (scan_data_[RIGHT] < check_side_dist)
-				{
+			if (scan_data_[RIGHT] < check_forward_dist) {
+				if (scan_data_[CENTER] > check_forward_dist) {
+					turtlebot3_state_num = TB3_DRIVE_FORWARD;
+				} else {
 					prev_robot_pose_ = robot_pose_;
 					turtlebot3_state_num = TB3_LEFT_TURN;
-					rotations = rotations - 1;
 				}
-				else
-				{
-					turtlebot3_state_num = TB3_DRIVE_FORWARD;
-				}
-			}
-
-			if (scan_data_[CENTER] < check_forward_dist)
-			{
+			} else {
 				prev_robot_pose_ = robot_pose_;
 				turtlebot3_state_num = TB3_RIGHT_TURN;
 			}
-			break;*/
-
-			if (right_data_[CENTER] > check_forward_dist) {
-				prev_robot_pose_ = robot_pose_;
-				turtlebot3_state_num = TB3_DRIVE_FORWARD;
-			} /*else if (scan_data_[CENTER] < check_forward_dist && right_data_[CENTER] < check_forward_dist){
-				prev_robot_pose_ = robot_pose_;
-				turtlebot3_state_num = TB3_LEFT_TURN;
-			} else {
-				turtlebot3_state_num = TB3_DRIVE_FORWARD;
-			}*/
 			break;
 
 		case TB3_DRIVE_FORWARD:
@@ -188,23 +143,17 @@ void WallFollower::update_callback()
 			break;
 
 		case TB3_RIGHT_TURN:
-			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
-			{
+			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range) {
 				turtlebot3_state_num = GET_TB3_DIRECTION;
-			}
-			else
-			{
+			} else {
 				update_cmd_vel(0.0, -1 * ANGULAR_VELOCITY);
 			}
 			break;
 
 		case TB3_LEFT_TURN:
-			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
-			{
+			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range) {
 				turtlebot3_state_num = GET_TB3_DIRECTION;
-			}
-			else
-			{
+			} else {
 				update_cmd_vel(0.0, ANGULAR_VELOCITY);
 			}
 			break;
