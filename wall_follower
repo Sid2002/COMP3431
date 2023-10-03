@@ -23,6 +23,7 @@
 #include <iostream>
 #include <vector>
 #include <tuple>
+#include<unistd.h>
 using namespace std;
 using namespace std::chrono_literals;
 
@@ -61,7 +62,7 @@ WallFollower::WallFollower()
 	/************************************************************
 	** Initialise ROS timers
 	************************************************************/
-	update_timer_ = this->create_wall_timer(30ms, std::bind(&WallFollower::update_callback, this));
+	update_timer_ = this->create_wall_timer(10ms, std::bind(&WallFollower::update_callback, this));
 
 	RCLCPP_INFO(this->get_logger(), "Wall follower node has been initialised");
 }
@@ -117,23 +118,30 @@ void WallFollower::update_cmd_vel(double linear, double angular)
 void WallFollower::update_callback()
 {
 	static uint8_t turtlebot3_state_num = GET_TB3_DIRECTION;
-	double escape_range = 30.0 * DEG2RAD;
-	double check_forward_dist = 0.7;
-	//double check_side_dist = 0.6;
+	double escape_range = 75.0 * DEG2RAD;
+	double check_forward_dist = 0.3;
+	double check_side_dist = 0.4;
 
 	switch (turtlebot3_state_num)
 	{
 		case GET_TB3_DIRECTION:
-			if (scan_data_[RIGHT] < check_forward_dist) {
+			if (scan_data_[RIGHT] < check_side_dist) {
 				if (scan_data_[CENTER] > check_forward_dist) {
+					turtlebot3_state_num = TB3_DRIVE_FORWARD;
+				} else if (scan_data_[RIGHT] < scan_data_[LEFT] && scan_data_[CENTER] < check_forward_dist) {
+					prev_robot_pose_ = robot_pose_;
+					turtlebot3_state_num = TB3_LEFT_TURN;
+				} else if (scan_data_[RIGHT] >= scan_data_[LEFT]) {
+					prev_robot_pose_ = robot_pose_;
+					turtlebot3_state_num = TB3_RIGHT_TURN;
+				}
+			} else {
+				if (scan_data_[RIGHT] > 1.0 && scan_data_[LEFT] > 1.0 && scan_data_[CENTER] > 1.0) {
 					turtlebot3_state_num = TB3_DRIVE_FORWARD;
 				} else {
 					prev_robot_pose_ = robot_pose_;
-					turtlebot3_state_num = TB3_LEFT_TURN;
+					turtlebot3_state_num = TB3_RIGHT_TURN;
 				}
-			} else {
-				prev_robot_pose_ = robot_pose_;
-				turtlebot3_state_num = TB3_RIGHT_TURN;
 			}
 			break;
 
