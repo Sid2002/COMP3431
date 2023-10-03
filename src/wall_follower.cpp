@@ -35,6 +35,8 @@ WallFollower::WallFollower()
 
 	robot_pose_ = {0.0, 0.0, 0.0};
 
+	mState = FOLLOW_WALL;
+
 
 	/************************************************************
 	** Initialise ROS publishers and subscribers
@@ -65,6 +67,7 @@ WallFollower::WallFollower()
 
 WallFollower::~WallFollower()
 {
+	update_cmd_vel(0.0, 0.0);
 	RCLCPP_INFO(this->get_logger(), "Wall follower node has been terminated");
 }
 
@@ -140,71 +143,47 @@ double WallFollower::average_angle(int angle, int range) {
 ********************************************************************************/
 void WallFollower::update_callback()
 {
-	std::cout << "Interation Run\n";
-	// static uint8_t turtlebot3_state_num = 0;
-	// double escape_range = 30.0 * DEG2RAD;
-	// double check_forward_dist = 0.7;
-	// double check_side_dist = 0.6;
 
-	// switch (turtlebot3_state_num)
-	// {
-	// 	case GET_TB3_DIRECTION:
-	// 		if (scan_data_[CENTER] > check_forward_dist)
-	// 		{
-	// 			if (scan_data_[LEFT] < check_side_dist)
-	// 			{
-	// 				prev_robot_pose_ = robot_pose_;
-	// 				turtlebot3_state_num = TB3_RIGHT_TURN;
-	// 			}
-	// 			else if (scan_data_[RIGHT] < check_side_dist)
-	// 			{
-	// 				prev_robot_pose_ = robot_pose_;
-	// 				turtlebot3_state_num = TB3_LEFT_TURN;
-	// 			}
-	// 			else
-	// 			{
-	// 				turtlebot3_state_num = TB3_DRIVE_FORWARD;
-	// 			}
-	// 		}
 
-	// 		if (scan_data_[CENTER] < check_forward_dist)
-	// 		{
-	// 			prev_robot_pose_ = robot_pose_;
-	// 			turtlebot3_state_num = TB3_RIGHT_TURN;
-	// 		}
-	// 		break;
+	switch (mState)
+	{
+		case FOLLOW_WALL:
+			if (mDebug > 1) std::cout << "WALL";
+			// Check if state needs changing
 
-	// 	case TB3_DRIVE_FORWARD:
-	// 		update_cmd_vel(LINEAR_VELOCITY, 0.0);
-	// 		turtlebot3_state_num = GET_TB3_DIRECTION;
-	// 		break;
 
-	// 	case TB3_RIGHT_TURN:
-	// 		if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
-	// 		{
-	// 			turtlebot3_state_num = GET_TB3_DIRECTION;
-	// 		}
-	// 		else
-	// 		{
-	// 			update_cmd_vel(0.0, -1 * ANGULAR_VELOCITY);
-	// 		}
-	// 		break;
+			// Execute Follow Wall
 
-	// 	case TB3_LEFT_TURN:
-	// 		if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
-	// 		{
-	// 			turtlebot3_state_num = GET_TB3_DIRECTION;
-	// 		}
-	// 		else
-	// 		{
-	// 			update_cmd_vel(0.0, ANGULAR_VELOCITY);
-	// 		}
-	// 		break;
 
-	// 	default:
-	// 		turtlebot3_state_num = GET_TB3_DIRECTION;
-	// 		break;
-	// }
+			break;
+
+		case OBSTICLE_TURN_LEFT:
+			if (mDebug > 1) std::cout << "OBST";
+			// Check if state needs changing
+
+
+			// Execute Left Turn
+
+
+			break;
+
+		case GAP_TURN_RIGHT:
+			if (mDebug > 1) std::cout << "GAPP";
+			// Check if state needs changing
+
+
+			// Execute Right Turn
+
+
+			break;
+
+		case STOP:
+		default:
+			update_cmd_vel(0.0, 0.0);
+			if (mDebug > 1) std::cout << "STOPPED";
+			break;
+	}
+	if (mDebug > 1) std::cout << std::endl;
 }
 
 /*******************************************************************************

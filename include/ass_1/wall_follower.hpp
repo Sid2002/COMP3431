@@ -34,10 +34,10 @@
 #define LINEAR_VELOCITY  0.3
 #define ANGULAR_VELOCITY 1.5
 
-#define GET_TB3_DIRECTION 0
-#define TB3_DRIVE_FORWARD 1
-#define TB3_RIGHT_TURN    2
-#define TB3_LEFT_TURN     3
+#define FOLLOW_WALL        0
+#define OBSTICLE_TURN_LEFT 1
+#define GAP_TURN_RIGHT     2
+#define STOP               3
 
 struct Pose {
   double x;
@@ -63,6 +63,8 @@ private:
   struct Pose robot_pose_;
   struct Pose prev_robot_pose_;
   double scan_data_[360];
+  uint8_t mState;
+  int mDebug = 2;
 
   // ROS timer
   rclcpp::TimerBase::SharedPtr update_timer_;
