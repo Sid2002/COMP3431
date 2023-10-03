@@ -17,7 +17,7 @@
 // Modified by Claude Sammut for COMP3431
 // Use this code as the basis for a wall follower
 
-#include "wall_follower/wall_follower.hpp"
+#include "ass_1/wall_follower.hpp"
 
 #include <memory>
 
@@ -29,12 +29,12 @@ WallFollower::WallFollower()
 	/************************************************************
 	** Initialise variables
 	************************************************************/
-	scan_data_[0] = 0.0;
-	scan_data_[1] = 0.0;
-	scan_data_[2] = 0.0;
+	for (int i = 0; i < 360; i++) {
+		scan_data_[i] = 0.0;
+	}
 
-	robot_pose_ = 0.0;
-	prev_robot_pose_ = 0.0;
+	robot_pose_ = {0.0, 0.0, 0.0};
+
 
 	/************************************************************
 	** Initialise ROS publishers and subscribers
@@ -82,22 +82,21 @@ void WallFollower::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
 	double roll, pitch, yaw;
 	m.getRPY(roll, pitch, yaw);
 
-	robot_pose_ = yaw;
+	struct Pose pose = {0, 0, yaw};
+	robot_pose_ = pose;
 }
 
 void WallFollower::scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
-	uint16_t scan_angle[3] = {0, 30, 330};
-
-	for (int num = 0; num < 3; num++)
+	for (int num = 0; num < 360; num++)
 	{
-		if (std::isinf(msg->ranges.at(scan_angle[num])))
+		if (std::isinf(msg->ranges.at(num)))
 		{
 			scan_data_[num] = msg->range_max;
 		}
 		else
 		{
-			scan_data_[num] = msg->ranges.at(scan_angle[num]);
+			scan_data_[num] = msg->ranges.at(num);
 		}
 	}
 }
@@ -111,75 +110,101 @@ void WallFollower::update_cmd_vel(double linear, double angular)
 	cmd_vel_pub_->publish(cmd_vel);
 }
 
+double WallFollower::min_angle(int angle, int range) {
+	double min = -1;
+	for (int i = -range; i < range; i++) {
+		int check_angle = i + angle;
+		if (check_angle >= 360) check_angle = check_angle - 360;
+		if (check_angle < 0) check_angle = check_angle + 360;
+		if (min == -1.0 || scan_data_[check_angle] < min) {
+			min = scan_data_[check_angle];
+		}
+	}
+	return min;
+}
+
+double WallFollower::average_angle(int angle, int range) {
+	double sum = 0;
+	for (int i = -range; i < range; i++) {
+		int check_angle = i + angle;
+		if (check_angle >= 360) check_angle -= 360;
+		if (check_angle < 360) check_angle += 360;
+		sum += scan_data_[check_angle];
+	}
+	return sum;
+}
+
+
 /********************************************************************************
 ** Update functions
 ********************************************************************************/
 void WallFollower::update_callback()
 {
-	static uint8_t turtlebot3_state_num = 0;
-	double escape_range = 30.0 * DEG2RAD;
-	double check_forward_dist = 0.7;
-	double check_side_dist = 0.6;
+	std::cout << "Interation Run\n";
+	// static uint8_t turtlebot3_state_num = 0;
+	// double escape_range = 30.0 * DEG2RAD;
+	// double check_forward_dist = 0.7;
+	// double check_side_dist = 0.6;
 
-	switch (turtlebot3_state_num)
-	{
-		case GET_TB3_DIRECTION:
-			if (scan_data_[CENTER] > check_forward_dist)
-			{
-				if (scan_data_[LEFT] < check_side_dist)
-				{
-					prev_robot_pose_ = robot_pose_;
-					turtlebot3_state_num = TB3_RIGHT_TURN;
-				}
-				else if (scan_data_[RIGHT] < check_side_dist)
-				{
-					prev_robot_pose_ = robot_pose_;
-					turtlebot3_state_num = TB3_LEFT_TURN;
-				}
-				else
-				{
-					turtlebot3_state_num = TB3_DRIVE_FORWARD;
-				}
-			}
+	// switch (turtlebot3_state_num)
+	// {
+	// 	case GET_TB3_DIRECTION:
+	// 		if (scan_data_[CENTER] > check_forward_dist)
+	// 		{
+	// 			if (scan_data_[LEFT] < check_side_dist)
+	// 			{
+	// 				prev_robot_pose_ = robot_pose_;
+	// 				turtlebot3_state_num = TB3_RIGHT_TURN;
+	// 			}
+	// 			else if (scan_data_[RIGHT] < check_side_dist)
+	// 			{
+	// 				prev_robot_pose_ = robot_pose_;
+	// 				turtlebot3_state_num = TB3_LEFT_TURN;
+	// 			}
+	// 			else
+	// 			{
+	// 				turtlebot3_state_num = TB3_DRIVE_FORWARD;
+	// 			}
+	// 		}
 
-			if (scan_data_[CENTER] < check_forward_dist)
-			{
-				prev_robot_pose_ = robot_pose_;
-				turtlebot3_state_num = TB3_RIGHT_TURN;
-			}
-			break;
+	// 		if (scan_data_[CENTER] < check_forward_dist)
+	// 		{
+	// 			prev_robot_pose_ = robot_pose_;
+	// 			turtlebot3_state_num = TB3_RIGHT_TURN;
+	// 		}
+	// 		break;
 
-		case TB3_DRIVE_FORWARD:
-			update_cmd_vel(LINEAR_VELOCITY, 0.0);
-			turtlebot3_state_num = GET_TB3_DIRECTION;
-			break;
+	// 	case TB3_DRIVE_FORWARD:
+	// 		update_cmd_vel(LINEAR_VELOCITY, 0.0);
+	// 		turtlebot3_state_num = GET_TB3_DIRECTION;
+	// 		break;
 
-		case TB3_RIGHT_TURN:
-			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
-			{
-				turtlebot3_state_num = GET_TB3_DIRECTION;
-			}
-			else
-			{
-				update_cmd_vel(0.0, -1 * ANGULAR_VELOCITY);
-			}
-			break;
+	// 	case TB3_RIGHT_TURN:
+	// 		if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
+	// 		{
+	// 			turtlebot3_state_num = GET_TB3_DIRECTION;
+	// 		}
+	// 		else
+	// 		{
+	// 			update_cmd_vel(0.0, -1 * ANGULAR_VELOCITY);
+	// 		}
+	// 		break;
 
-		case TB3_LEFT_TURN:
-			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
-			{
-				turtlebot3_state_num = GET_TB3_DIRECTION;
-			}
-			else
-			{
-				update_cmd_vel(0.0, ANGULAR_VELOCITY);
-			}
-			break;
+	// 	case TB3_LEFT_TURN:
+	// 		if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range)
+	// 		{
+	// 			turtlebot3_state_num = GET_TB3_DIRECTION;
+	// 		}
+	// 		else
+	// 		{
+	// 			update_cmd_vel(0.0, ANGULAR_VELOCITY);
+	// 		}
+	// 		break;
 
-		default:
-			turtlebot3_state_num = GET_TB3_DIRECTION;
-			break;
-	}
+	// 	default:
+	// 		turtlebot3_state_num = GET_TB3_DIRECTION;
+	// 		break;
+	// }
 }
 
 /*******************************************************************************

@@ -39,6 +39,12 @@
 #define TB3_RIGHT_TURN    2
 #define TB3_LEFT_TURN     3
 
+struct Pose {
+  double x;
+  double y;
+  double yaw;
+};
+
 class WallFollower : public rclcpp::Node
 {
 public:
@@ -54,9 +60,9 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
   // Variables
-  double robot_pose_;
-  double prev_robot_pose_;
-  double scan_data_[3];
+  struct Pose robot_pose_;
+  struct Pose prev_robot_pose_;
+  double scan_data_[360];
 
   // ROS timer
   rclcpp::TimerBase::SharedPtr update_timer_;
@@ -66,5 +72,8 @@ private:
   void update_cmd_vel(double linear, double angular);
   void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
   void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg);
+  double min_angle(int angle, int range = 5);
+  double average_angle(int angle, int range = 5);
+  double wall_angle(int angle, int range = 5);
 };
 #endif  // TURTLEBOT3_GAZEBO__TURTLEBOT3_DRIVE_HPP_
