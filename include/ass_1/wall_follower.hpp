@@ -23,6 +23,8 @@
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <vector>
+#include <math.h>
 
 #define DEG2RAD (M_PI / 180.0)
 #define RAD2DEG (180.0 / M_PI)
@@ -43,6 +45,14 @@ struct Pose {
   double x;
   double y;
   double yaw;
+};
+
+struct Wall {
+  double angle; // degrees
+  double distance; // m
+  double certainty;
+  double wallStart; // m
+  double wallEnd; // m
 };
 
 class WallFollower : public rclcpp::Node
@@ -77,5 +87,7 @@ private:
   double min_angle(int angle, int range = 5);
   double average_angle(int angle, int range = 5);
   double wall_angle(int angle, int range = 5);
+  std::vector<std::pair<double, double>> distances(int angle, int range = 5);
+  struct Wall calculateWall(std::vector<std::pair<double, double>> distances);
 };
 #endif  // TURTLEBOT3_GAZEBO__TURTLEBOT3_DRIVE_HPP_

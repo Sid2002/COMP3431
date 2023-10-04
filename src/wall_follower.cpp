@@ -131,12 +131,57 @@ double WallFollower::average_angle(int angle, int range) {
 	for (int i = -range; i < range; i++) {
 		int check_angle = i + angle;
 		if (check_angle >= 360) check_angle -= 360;
-		if (check_angle < 360) check_angle += 360;
+		if (check_angle < 0) check_angle += 360;
 		sum += scan_data_[check_angle];
 	}
 	return sum;
 }
 
+std::vector<std::pair<double, double>> WallFollower::distances(int angle, int range) {
+	std::vector<std::pair<double, double>> distances;
+	for (int i = -range; i < range; i++) {
+		int check_angle = i + angle;
+		if (check_angle >= 360) check_angle -= 360;
+		if (check_angle < 0) check_angle += 360;
+		double x = scan_data_[check_angle] * std::sin(i * DEG2RAD);
+		double y = scan_data_[check_angle] * std::cos(i * DEG2RAD);
+		distances.push_back(std::make_pair(x, y));
+	}
+	return distances;
+}
+
+struct Wall WallFollower::calculateWall(std::vector<std::pair<double, double>> distances) {
+	struct Wall wall{0.0, 0.0, 0.0, 0.0, 0.0};
+
+	int wallStartIndex = 0;
+	int wallEndIndex = distances.size() - 1;
+	double sumY = 0.0;
+	double sumX = 0.0;
+	for (int i = wallStartIndex; i <= wallEndIndex; i++) {
+		auto point = distances[i];
+		sumY += point.second;
+		sumX += point.first;
+	}
+	double averageY = sumY / (wallEndIndex-wallStartIndex+1);
+	double averageX = sumX / (wallEndIndex-wallStartIndex+1);
+	double numeratorSum = 0.0;
+	double denominatorSum = 0.0;
+	for (int i = wallStartIndex; i <= wallEndIndex; i++) {
+		auto point = distances[i];
+		numeratorSum += ((point.first - averageX) * (point.second - averageY));
+		denominatorSum += std::pow(point.first - averageX, 2);
+	}
+	double gradient = 0.0;
+	if (denominatorSum != 0.0) {
+		gradient = numeratorSum / denominatorSum;
+	}
+
+	wall.angle = std::atan(gradient) * RAD2DEG;
+	wall.distance = averageY - gradient * averageX;
+
+	// std::cout << ": " << distances.size() << ", " << averageY << ", angle" << wall.angle << ", distance: " << wall.distance;
+	return wall;
+}
 
 /********************************************************************************
 ** Update functions
@@ -144,30 +189,42 @@ double WallFollower::average_angle(int angle, int range) {
 void WallFollower::update_callback()
 {
 
+	struct Wall sideWall = calculateWall(distances(270, 20));
+	struct Wall frontWall = calculateWall(distances(0, 10));
+
+	if (frontWall.distance == 0.0) return;
 
 	switch (mState)
 	{
-		case FOLLOW_WALL:
+		case FOLLOW_WALL: {
 			if (mDebug > 1) std::cout << "WALL";
-			// Check if state needs changing
 
+			// Check if state needs changing
+			if (mDebug > 1) std::cout << ", front: " << frontWall.distance;
+			if (frontWall.distance < 0.4) {
+				mState = OBSTICLE_TURN_LEFT;
+			}
 
 			// Execute Follow Wall
-
+			update_cmd_vel(0.3, 0.0);
 
 			break;
+		}
 
-		case OBSTICLE_TURN_LEFT:
+		case OBSTICLE_TURN_LEFT: {
 			if (mDebug > 1) std::cout << "OBST";
 			// Check if state needs changing
-
+			if (mDebug > 1) std::cout << ", front: " << frontWall.distance << ", sideAngle: " << sideWall.angle;
+			if (frontWall.distance > 0.6 && sideWall.angle > -10) {
+				mState = STOP;
+			}
 
 			// Execute Left Turn
-
+			update_cmd_vel(0.0, 1);
 
 			break;
-
-		case GAP_TURN_RIGHT:
+		}
+		case GAP_TURN_RIGHT: {
 			if (mDebug > 1) std::cout << "GAPP";
 			// Check if state needs changing
 
@@ -176,12 +233,13 @@ void WallFollower::update_callback()
 
 
 			break;
-
+		}
 		case STOP:
-		default:
+		default: {
 			update_cmd_vel(0.0, 0.0);
 			if (mDebug > 1) std::cout << "STOPPED";
 			break;
+		}
 	}
 	if (mDebug > 1) std::cout << std::endl;
 }
