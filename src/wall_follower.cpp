@@ -215,8 +215,8 @@ void WallFollower::update_callback()
 			if (mDebug > 1) std::cout << "OBST";
 			// Check if state needs changing
 			if (mDebug > 1) std::cout << ", front: " << frontWall.distance << ", sideAngle: " << sideWall.angle;
-			if (frontWall.distance > 0.6 && sideWall.angle > -10) {
-				mState = STOP;
+			if (frontWall.distance > 0.6 && sideWall.angle > -15) {
+				mState = FOLLOW_WALL;
 			}
 
 			// Execute Left Turn
