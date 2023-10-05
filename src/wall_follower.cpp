@@ -17,10 +17,14 @@
 // Modified by Claude Sammut for COMP3431
 // Use this code as the basis for a wall follower
 
-#include "ass_1/wall_follower.hpp"
+#include "wall_follower/wall_follower.hpp"
 
 #include <memory>
-
+#include <iostream>
+#include <vector>
+#include <tuple>
+#include<unistd.h>
+using namespace std;
 using namespace std::chrono_literals;
 
 WallFollower::WallFollower()
@@ -29,14 +33,12 @@ WallFollower::WallFollower()
 	/************************************************************
 	** Initialise variables
 	************************************************************/
-	for (int i = 0; i < 360; i++) {
-		scan_data_[i] = 0.0;
-	}
+	scan_data_[0] = 0.0;
+	scan_data_[1] = 0.0;
+	scan_data_[2] = 0.0;
 
-	robot_pose_ = {0.0, 0.0, 0.0};
-
-	mState = FOLLOW_WALL;
-
+	robot_pose_ = 0.0;
+	prev_robot_pose_ = 0.0;
 
 	/************************************************************
 	** Initialise ROS publishers and subscribers
@@ -67,7 +69,6 @@ WallFollower::WallFollower()
 
 WallFollower::~WallFollower()
 {
-	update_cmd_vel(0.0, 0.0);
 	RCLCPP_INFO(this->get_logger(), "Wall follower node has been terminated");
 }
 
@@ -85,21 +86,19 @@ void WallFollower::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
 	double roll, pitch, yaw;
 	m.getRPY(roll, pitch, yaw);
 
-	struct Pose pose = {0, 0, yaw};
-	robot_pose_ = pose;
+	robot_pose_ = yaw;
 }
 
 void WallFollower::scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
-	for (int num = 0; num < 360; num++)
+	uint16_t scan_angle[3] = {0, 90, 270};
+	
+	for (int num = 0; num < 3; num++)
 	{
-		if (std::isinf(msg->ranges.at(num)))
-		{
+		if (std::isinf(msg->ranges.at(scan_angle[num]))) {
 			scan_data_[num] = msg->range_max;
-		}
-		else
-		{
-			scan_data_[num] = msg->ranges.at(num);
+		} else {
+			scan_data_[num] = msg->ranges.at(scan_angle[num]);
 		}
 	}
 }
@@ -113,77 +112,64 @@ void WallFollower::update_cmd_vel(double linear, double angular)
 	cmd_vel_pub_->publish(cmd_vel);
 }
 
-double WallFollower::min_angle(int angle, int range) {
-	double min = -1;
-	for (int i = -range; i < range; i++) {
-		int check_angle = i + angle;
-		if (check_angle >= 360) check_angle = check_angle - 360;
-		if (check_angle < 0) check_angle = check_angle + 360;
-		if (min == -1.0 || scan_data_[check_angle] < min) {
-			min = scan_data_[check_angle];
-		}
-	}
-	return min;
-}
-
-double WallFollower::average_angle(int angle, int range) {
-	double sum = 0;
-	for (int i = -range; i < range; i++) {
-		int check_angle = i + angle;
-		if (check_angle >= 360) check_angle -= 360;
-		if (check_angle < 360) check_angle += 360;
-		sum += scan_data_[check_angle];
-	}
-	return sum;
-}
-
-
 /********************************************************************************
 ** Update functions
 ********************************************************************************/
 void WallFollower::update_callback()
 {
-
-
-	switch (mState)
+	static uint8_t turtlebot3_state_num = GET_TB3_DIRECTION;
+	double escape_range = 30 * DEG2RAD;
+	double check_forward_dist = 0.4;
+	double check_side_dist = 0.4;
+	double error_dist = 0.2;
+	std::cout << "Center:	" << fixed << scan_data_[CENTER] << "	Right:	" << scan_data_[RIGHT] << endl;
+	switch (turtlebot3_state_num)
 	{
-		case FOLLOW_WALL:
-			if (mDebug > 1) std::cout << "WALL";
-			// Check if state needs changing
-
-
-			// Execute Follow Wall
-
-
+		case GET_TB3_DIRECTION:
+			if (scan_data_[RIGHT] <= error_dist) {
+				update_cmd_vel(0.2, 0.5);
+			} else if (scan_data_[RIGHT] > check_side_dist) {
+				if (scan_data_[CENTER] < check_forward_dist) {
+					prev_robot_pose_ = robot_pose_;
+					turtlebot3_state_num = TB3_LEFT_TURN;	
+				} else {
+					update_cmd_vel(0.2, -0.5);
+				}
+			} else if (scan_data_[RIGHT] > error_dist && scan_data_[RIGHT] <= check_side_dist) {
+				if (scan_data_[CENTER] > check_forward_dist) {
+					turtlebot3_state_num = TB3_DRIVE_FORWARD;	
+				} else {
+					prev_robot_pose_ = robot_pose_;
+					turtlebot3_state_num = TB3_LEFT_TURN;
+				}
+			}
 			break;
 
-		case OBSTICLE_TURN_LEFT:
-			if (mDebug > 1) std::cout << "OBST";
-			// Check if state needs changing
-
-
-			// Execute Left Turn
-
-
+		case TB3_DRIVE_FORWARD:
+			update_cmd_vel(LINEAR_VELOCITY, 0.0);
+			turtlebot3_state_num = GET_TB3_DIRECTION;
 			break;
 
-		case GAP_TURN_RIGHT:
-			if (mDebug > 1) std::cout << "GAPP";
-			// Check if state needs changing
-
-
-			// Execute Right Turn
-
-
+		case TB3_RIGHT_TURN:
+			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range) {
+				turtlebot3_state_num = GET_TB3_DIRECTION;
+			} else {
+				update_cmd_vel(0.0, -1 * ANGULAR_VELOCITY);
+			}
 			break;
 
-		case STOP:
+		case TB3_LEFT_TURN:
+			if (fabs(prev_robot_pose_ - robot_pose_) >= escape_range) {
+				turtlebot3_state_num = GET_TB3_DIRECTION;
+			} else {
+				update_cmd_vel(0.0, ANGULAR_VELOCITY);
+			}
+			break;
+
 		default:
-			update_cmd_vel(0.0, 0.0);
-			if (mDebug > 1) std::cout << "STOPPED";
+			turtlebot3_state_num = GET_TB3_DIRECTION;
 			break;
 	}
-	if (mDebug > 1) std::cout << std::endl;
 }
 
 /*******************************************************************************
@@ -197,3 +183,4 @@ int main(int argc, char ** argv)
 
 	return 0;
 }
+
