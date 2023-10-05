@@ -24,6 +24,11 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 
+#include <iostream>
+#include <vector>
+#include <tuple>
+using namespace std;
+
 #define DEG2RAD (M_PI / 180.0)
 #define RAD2DEG (180.0 / M_PI)
 
@@ -32,18 +37,12 @@
 #define RIGHT  2
 
 #define LINEAR_VELOCITY  0.3
-#define ANGULAR_VELOCITY 1.5
+#define ANGULAR_VELOCITY 1.0
 
-#define FOLLOW_WALL        0
-#define OBSTICLE_TURN_LEFT 1
-#define GAP_TURN_RIGHT     2
-#define STOP               3
-
-struct Pose {
-  double x;
-  double y;
-  double yaw;
-};
+#define GET_TB3_DIRECTION 0
+#define TB3_DRIVE_FORWARD 1
+#define TB3_RIGHT_TURN    2
+#define TB3_LEFT_TURN     3
 
 class WallFollower : public rclcpp::Node
 {
@@ -60,11 +59,9 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
   // Variables
-  struct Pose robot_pose_;
-  struct Pose prev_robot_pose_;
-  double scan_data_[360];
-  uint8_t mState;
-  int mDebug = 2;
+  double robot_pose_;
+  double prev_robot_pose_;
+  double scan_data_[3];
 
   // ROS timer
   rclcpp::TimerBase::SharedPtr update_timer_;
@@ -74,8 +71,6 @@ private:
   void update_cmd_vel(double linear, double angular);
   void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
   void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg);
-  double min_angle(int angle, int range = 5);
-  double average_angle(int angle, int range = 5);
-  double wall_angle(int angle, int range = 5);
 };
 #endif  // TURTLEBOT3_GAZEBO__TURTLEBOT3_DRIVE_HPP_
+
