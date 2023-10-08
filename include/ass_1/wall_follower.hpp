@@ -53,6 +53,7 @@ struct Wall {
   double certainty;
   double wallStart; // m
   double wallEnd; // m
+  double zeroDegDistance; // m
 };
 
 class WallFollower : public rclcpp::Node
