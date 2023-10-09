@@ -17,7 +17,7 @@
 // Modified by Claude Sammut for COMP3431
 // Use this code as the basis for a wall follower
 
-#include "wall_follower/wall_follower.hpp"
+#include "ass_1/wall_follower.hpp"
 
 #include <memory>
 #include <iostream>
