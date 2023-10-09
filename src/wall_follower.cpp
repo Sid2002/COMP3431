@@ -150,19 +150,57 @@ std::vector<std::pair<double, double>> WallFollower::distances(int angle, int ra
 	return distances;
 }
 
-bool comparePointY (std::pair<double, double> i,std::pair<double, double> j) { return (i.second<j.second); }
+bool comparePointY(std::pair<double, double> i,std::pair<double, double> j) { return (i.second<j.second); }
 
 struct Wall WallFollower::calculateWall(std::vector<std::pair<double, double>> distances) {
 
-	// constexpr max_wall_distance = 1.0;
+	constexpr double max_wall_distance = 1.0;
 	struct Wall wall{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-	// auto sorted_distances{distance}
+	std::vector<std::pair<double, double>> sorted_distances{};
 
+	for (auto&& point : distances) {
+		if (point.second < max_wall_distance){
+			sorted_distances.push_back(point);
+		}
+	}
 
+	std::sort(sorted_distances.begin(), sorted_distances.end(), comparePointY);
 
-	int wallStartIndex = 0;
+	int size = sorted_distances.size();
+	if (size == 0) {
+		return wall;
+	}
+	std::pair<double, double> median;
+	if (size % 2 == 0) {
+      median = sorted_distances[size / 2 - 1];
+    } else  {
+      median =  sorted_distances[size / 2];
+    }
+
+	// std::cout << "distances sorted (" << median.first << ", " << median.second << ")";
+
+	int wallStartIndex = distances.size() + 1;
 	int wallEndIndex = distances.size() - 1;
+	const int numInputs = distances.size();
+	for (int i = 0; i <= numInputs; i++) {
+		std::pair<double, double> checkPoint = distances[i];
+		double range = std::abs((median.first - checkPoint.first) * 1);
+		// std::cout << "\t (" << checkPoint.first << ", " << checkPoint.second << ") range:" << range << ", " << std::abs(median.second - checkPoint.second) << "\n";
+		if (std::abs(median.second - checkPoint.second) <= range) {
+			if (wallStartIndex > i) {
+				wallStartIndex = i;
+				wallEndIndex = i;
+			}
+			wallEndIndex = i;
+		}
+	}
+	// std::cout << " start: " << wallStartIndex << ", end: " << wallEndIndex;
+	if (wallStartIndex == numInputs + 1) return wall;
+
+	wall.wallStart = distances[wallStartIndex].first;
+	wall.wallEnd = distances[wallEndIndex].first;
+
 	double sumY = 0.0;
 	double sumX = 0.0;
 	for (int i = wallStartIndex; i <= wallEndIndex; i++) {
@@ -200,12 +238,12 @@ void WallFollower::update_callback()
 {
 
 	constexpr double wallDistanceTarget = 0.3;
-	constexpr double frontDistanceTarget = wallDistanceTarget;
+	constexpr double frontDistanceTarget = 0.4;
 
-	struct Wall sideWall = calculateWall(distances(270, 20));
-	struct Wall frontWall = calculateWall(distances(0, 10));
+	struct Wall sideWall = calculateWall(distances(270, 30));
+	struct Wall frontWall = calculateWall(distances(0, 7));
 
-	if (frontWall.distance == 0.0) return;
+	// if (frontWall.distance == 0.0) return;
 
 	switch (mState)
 	{
@@ -213,9 +251,12 @@ void WallFollower::update_callback()
 			if (mDebug > 1) std::cout << "WALL";
 
 			// Check if state needs changing
-			if (mDebug > 1) std::cout << ", front: " << frontWall.zeroDegDistance << "side: " << sideWall.distance << " m @ " << sideWall.angle << " degrees";
-			if (frontWall.zeroDegDistance < frontDistanceTarget) {
+			if (mDebug > 1) std::cout << ", front: " << frontWall.zeroDegDistance << "side: " << sideWall.distance << " m @ " << sideWall.angle << " degrees (" << sideWall.wallStart << "<x<=" << sideWall.wallEnd << ") ";
+			if (frontWall.zeroDegDistance < frontDistanceTarget && frontWall.distance != 0.0) {
 				mState = OBSTICLE_TURN_LEFT;
+			}
+			if (sideWall.wallEnd < 0.09 && sideWall.distance != 0.0) {
+				mState = GAP_TURN_RIGHT;
 			}
 
 			// Execute Follow Wall
@@ -257,7 +298,7 @@ void WallFollower::update_callback()
 			if (mDebug > 1) std::cout << "OBST";
 			// Check if state needs changing
 			if (mDebug > 1) std::cout << ", front: " << frontWall.zeroDegDistance << ", sideAngle: " << sideWall.angle;
-			if (frontWall.zeroDegDistance > 0.6 && sideWall.angle > -15) {
+			if ((frontWall.zeroDegDistance > 0.6 || frontWall.zeroDegDistance == 0.0) && sideWall.angle > -15) {
 				mState = FOLLOW_WALL;
 			}
 
@@ -269,10 +310,15 @@ void WallFollower::update_callback()
 		case GAP_TURN_RIGHT: {
 			if (mDebug > 1) std::cout << "GAPP";
 			// Check if state needs changing
-
+			// if (mDebug > 1) std::cout << ", side Angle: " << sideWall.angle << ", length: " << (sideWall.wallEnd - sideWall.wallStart) << ", End: " << sideWall.wallEnd;
+			if (mDebug > 1) std::cout << ", side Angle: " << sideWall.angle << ", length: " << (sideWall.wallEnd - sideWall.wallStart) << ", End: " << sideWall.wallEnd << ", @310: " << scan_data_[310];
+			// if (sideWall.angle < 7 && sideWall.angle > -10 && std::abs(sideWall.wallEnd - sideWall.wallStart) > 0.1 && sideWall.wallEnd > 0.05) {
+			if (scan_data_[310] < 1.5 * wallDistanceTarget) {
+				mState = FOLLOW_WALL;
+			}
 
 			// Execute Right Turn
-
+			update_cmd_vel(0.2, -0.7);
 
 			break;
 		}
