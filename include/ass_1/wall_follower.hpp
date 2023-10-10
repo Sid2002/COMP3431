@@ -41,6 +41,8 @@
 #define GAP_TURN_RIGHT     2
 #define STOP               3
 
+#define STOP_END_DIST 0.5
+
 struct Pose {
   double x;
   double y;
