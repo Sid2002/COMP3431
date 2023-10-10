@@ -60,9 +60,11 @@ WallFollower::WallFollower()
 	/************************************************************
 	** Initialise ROS timers
 	************************************************************/
-	update_timer_ = this->create_wall_timer(10ms, std::bind(&WallFollower::update_callback, this));
+	update_timer_ = this->create_wall_timer(50ms, std::bind(&WallFollower::update_callback, this));
 
 	RCLCPP_INFO(this->get_logger(), "Wall follower node has been initialised");
+
+	// update_cmd_vel(0.0, 0.01);
 }
 
 WallFollower::~WallFollower()
@@ -152,7 +154,7 @@ double WallFollower::average_angle(int angle, int range) {
 		if (check_angle < 0) check_angle += 360;
 		sum += scan_data_[check_angle];
 	}
-	return sum;
+	return sum/ (range * 2);
 }
 
 std::vector<std::pair<double, double>> WallFollower::distances(int angle, int range) {
@@ -214,7 +216,7 @@ struct Wall WallFollower::calculateWall(std::vector<std::pair<double, double>> d
 		}
 	}
 	// std::cout << " start: " << wallStartIndex << ", end: " << wallEndIndex;
-	if (wallStartIndex == numInputs + 1) return wall;
+	if (wallStartIndex == numInputs + 1 || wallEndIndex - wallStartIndex <= 2) return wall;
 
 	wall.wallStart = distances[wallStartIndex].first;
 	wall.wallEnd = distances[wallEndIndex].first;
@@ -258,11 +260,10 @@ void WallFollower::update_callback()
 	constexpr double wallDistanceTarget = 0.3;
 	constexpr double frontDistanceTarget = 0.4;
 
-	struct Wall sideWall = calculateWall(distances(270, 30));
+	struct Wall sideWall = calculateWall(distances(270, 15));
 	struct Wall frontWall = calculateWall(distances(0, 7));
 
 	// get current pos 
-	
 	
 
 	switch (mState)
@@ -272,11 +273,13 @@ void WallFollower::update_callback()
 
 			// Check if state needs changing
 			if (mDebug > 1) std::cout << ", front: " << frontWall.zeroDegDistance << "side: " << sideWall.distance << " m @ " << sideWall.angle << " degrees (" << sideWall.wallStart << "<x<=" << sideWall.wallEnd << ") ";
-			if (frontWall.zeroDegDistance < frontDistanceTarget && frontWall.distance != 0.0) {
+			if (average_angle(0, 7) < frontDistanceTarget && average_angle(0, 7) != 0.0) {
 				mState = OBSTICLE_TURN_LEFT;
+				break;
 			}
 			if (sideWall.wallEnd < 0.09 && sideWall.distance != 0.0) {
 				mState = GAP_TURN_RIGHT;
+				break;
 			}
 			if (start_loc_.x - curr_loc_.x < 0.5 && start_loc_.x - curr_loc_.x > -0.5) {
 				if (start_loc_.y - curr_loc_.y < 0.5 && start_loc_.y - curr_loc_.y > -0.5) {
@@ -290,9 +293,12 @@ void WallFollower::update_callback()
 
 			// Execute Follow Wall
 			double wallDistanceError = wallDistanceTarget - sideWall.distance;
-			if (std::abs(wallDistanceError) < 0.05 && std::abs(sideWall.angle) < 2) {
+			if (sideWall.distance == 0 && frontWall.distance == 0) {
+				std::cout << "WAIT";
+				update_cmd_vel(0.0, 0.0);
+			} else if (std::abs(wallDistanceError) < 0.05 && std::abs(sideWall.angle) < 2) {
 				std::cout << "STRAIGHT";
-				update_cmd_vel(0.3, 0.0);
+				update_cmd_vel(0.5, 0.0);
 			} else if (wallDistanceError < 0.0) { // Move Right
 				double targetAngle = wallDistanceError * 10 / 0.2;
 				if (targetAngle < -13) targetAngle = -13;
@@ -301,7 +307,9 @@ void WallFollower::update_callback()
 					std::cout << "MV(R)ANGLE(" << targetAngle << "): 0.0";
 					update_cmd_vel(0.3, 0.0);
 				} else {
-					double rotation = angleError * 0.3 / 10;
+					double rotation = angleError * 0.5 / 10;
+					if (rotation > 1) rotation = 1;
+					if (rotation < -1) rotation = -1;
 					std::cout << "MV(R)ANGLE(" << targetAngle << "): " << rotation;
 					update_cmd_vel(0.3, rotation);
 				} 
@@ -314,7 +322,9 @@ void WallFollower::update_callback()
 					std::cout << "MV(L)ANGLE(" << targetAngle << "): 0.0";
 					update_cmd_vel(0.3, 0.0);
 				} else {
-					double rotation = angleError * 0.3 / 10;
+					double rotation = angleError * 0.5 / 10;
+					if (rotation > 1) rotation = 1;
+					if (rotation < -1) rotation = -1;
 					std::cout << "MV(L)ANGLE(" << targetAngle << "): " << rotation;
 					update_cmd_vel(0.3, rotation);
 				} 
@@ -329,6 +339,7 @@ void WallFollower::update_callback()
 			if (mDebug > 1) std::cout << ", front: " << frontWall.zeroDegDistance << ", sideAngle: " << sideWall.angle;
 			if ((frontWall.zeroDegDistance > 0.6 || frontWall.zeroDegDistance == 0.0) && sideWall.angle > -15) {
 				mState = FOLLOW_WALL;
+				break;
 			}
 
 			// Execute Left Turn
@@ -342,12 +353,13 @@ void WallFollower::update_callback()
 			// if (mDebug > 1) std::cout << ", side Angle: " << sideWall.angle << ", length: " << (sideWall.wallEnd - sideWall.wallStart) << ", End: " << sideWall.wallEnd;
 			if (mDebug > 1) std::cout << ", side Angle: " << sideWall.angle << ", length: " << (sideWall.wallEnd - sideWall.wallStart) << ", End: " << sideWall.wallEnd << ", @310: " << scan_data_[310];
 			// if (sideWall.angle < 7 && sideWall.angle > -10 && std::abs(sideWall.wallEnd - sideWall.wallStart) > 0.1 && sideWall.wallEnd > 0.05) {
-			if (scan_data_[310] < 1.5 * wallDistanceTarget) {
+			if (scan_data_[310] < 1.5 * wallDistanceTarget && scan_data_[310] != 0.0) {
 				mState = FOLLOW_WALL;
+				break;
 			}
 
 			// Execute Right Turn
-			update_cmd_vel(0.2, -0.7);
+			update_cmd_vel(0.2, -0.9);
 
 			break;
 		}
@@ -355,6 +367,7 @@ void WallFollower::update_callback()
 		case STOP: {
 			if (mDebug > 1) std::cout << "RETURNED TO START";
 			update_cmd_vel(0.0, 0.0);
+			break;
 		}
 
 		default: {
@@ -364,6 +377,8 @@ void WallFollower::update_callback()
 		}
 	}
 	if (mDebug > 1) std::cout << std::endl;
+
+	
 }
 
 /*******************************************************************************
