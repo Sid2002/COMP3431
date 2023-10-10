@@ -257,13 +257,11 @@ void WallFollower::update_callback()
 
 	constexpr double wallDistanceTarget = 0.3;
 	constexpr double frontDistanceTarget = 0.4;
+	constexpr double startEndTolerance = 0.5;
+	constexpr double yawTolerance = 0.3;
 
 	struct Wall sideWall = calculateWall(distances(270, 30));
 	struct Wall frontWall = calculateWall(distances(0, 7));
-
-	// get current pos 
-	
-	
 
 	switch (mState)
 	{
@@ -278,9 +276,9 @@ void WallFollower::update_callback()
 			if (sideWall.wallEnd < 0.09 && sideWall.distance != 0.0) {
 				mState = GAP_TURN_RIGHT;
 			}
-			if (start_loc_.x - curr_loc_.x < 0.5 && start_loc_.x - curr_loc_.x > -0.5) {
-				if (start_loc_.y - curr_loc_.y < 0.5 && start_loc_.y - curr_loc_.y > -0.5) {
-					if (start_pose_.yaw - robot_pose_.yaw < 0.3 &&  start_pose_.yaw - robot_pose_.yaw > -0.3) {
+			if (start_loc_.x - curr_loc_.x < startEndTolerance && start_loc_.x - curr_loc_.x > -startEndTolerance) {
+				if (start_loc_.y - curr_loc_.y < startEndTolerance && start_loc_.y - curr_loc_.y > -startEndTolerance) {
+					if (start_pose_.yaw - robot_pose_.yaw < yawTolerance &&  start_pose_.yaw - robot_pose_.yaw > -yawTolerance) {
 						if (left_start_ == true) {
 							mState = STOP;
 						}
