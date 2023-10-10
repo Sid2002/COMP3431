@@ -293,7 +293,7 @@ void WallFollower::update_callback()
 			} else if (wallDistanceError < 0.0) { // Move Right
 				double targetAngle = wallDistanceError * 10 / 0.2;
 				if (targetAngle < -13) targetAngle = -13;
-				double angleError = (targetAngle - sideWall.angle);
+				double angleError = -(targetAngle - sideWall.angle);
 				if (std::abs(angleError) < 2) {
 					std::cout << "MV(R)ANGLE(" << targetAngle << "): 0.0";
 					update_cmd_vel(0.3, 0.0);
@@ -306,7 +306,7 @@ void WallFollower::update_callback()
 			} else { // wallDistanceError < 0 // Move Left
 				double targetAngle = wallDistanceError * 10 / 0.2;
 				if (targetAngle > 13) targetAngle = 13;
-				double angleError = (targetAngle - sideWall.angle);
+				double angleError = -(targetAngle - sideWall.angle);
 				if (std::abs(angleError) < 2) {
 					std::cout << "MV(L)ANGLE(" << targetAngle << "): 0.0";
 					update_cmd_vel(0.3, 0.0);
