@@ -152,7 +152,7 @@ double WallFollower::average_angle(int angle, int range) {
 		if (check_angle < 0) check_angle += 360;
 		sum += scan_data_[check_angle];
 	}
-	return sum;
+	return sum / (range * 2);
 }
 
 std::vector<std::pair<double, double>> WallFollower::distances(int angle, int range) {
@@ -255,7 +255,7 @@ struct Wall WallFollower::calculateWall(std::vector<std::pair<double, double>> d
 void WallFollower::update_callback()
 {
 
-	constexpr double wallDistanceTarget = 0.3;
+	constexpr double wallDistanceTarget = 0.25;
 	constexpr double frontDistanceTarget = 0.4;
 	constexpr double yawTolerance = 0.3;
 
@@ -269,7 +269,7 @@ void WallFollower::update_callback()
 
 			// Check if state needs changing
 			if (mDebug > 1) std::cout << ", front: " << frontWall.zeroDegDistance << "side: " << sideWall.distance << " m @ " << sideWall.angle << " degrees (" << sideWall.wallStart << "<x<=" << sideWall.wallEnd << ") ";
-			if (frontWall.zeroDegDistance < frontDistanceTarget && frontWall.distance != 0.0) {
+			if (average_angle(0, 7) < frontDistanceTarget) {
 				mState = OBSTICLE_TURN_LEFT;
 			}
 			if (sideWall.wallEnd < 0.09 && sideWall.distance != 0.0) {
@@ -293,7 +293,7 @@ void WallFollower::update_callback()
 			} else if (wallDistanceError < 0.0) { // Move Right
 				double targetAngle = wallDistanceError * 10 / 0.2;
 				if (targetAngle < -13) targetAngle = -13;
-				double angleError = targetAngle - sideWall.angle;
+				double angleError = (targetAngle - sideWall.angle);
 				if (std::abs(angleError) < 2) {
 					std::cout << "MV(R)ANGLE(" << targetAngle << "): 0.0";
 					update_cmd_vel(0.3, 0.0);
@@ -306,7 +306,7 @@ void WallFollower::update_callback()
 			} else { // wallDistanceError < 0 // Move Left
 				double targetAngle = wallDistanceError * 10 / 0.2;
 				if (targetAngle > 13) targetAngle = 13;
-				double angleError = targetAngle - sideWall.angle;
+				double angleError = (targetAngle - sideWall.angle);
 				if (std::abs(angleError) < 2) {
 					std::cout << "MV(L)ANGLE(" << targetAngle << "): 0.0";
 					update_cmd_vel(0.3, 0.0);
@@ -323,13 +323,13 @@ void WallFollower::update_callback()
 		case OBSTICLE_TURN_LEFT: {
 			if (mDebug > 1) std::cout << "OBST";
 			// Check if state needs changing
-			if (mDebug > 1) std::cout << ", front: " << frontWall.zeroDegDistance << ", sideAngle: " << sideWall.angle;
-			if ((frontWall.zeroDegDistance > 0.6 || frontWall.zeroDegDistance == 0.0) && sideWall.angle > -15) {
+			if (mDebug > 1) std::cout << ", front: " << average_angle(0, 7) << ", sideAngle: " << sideWall.angle;
+			if ((average_angle(0, 7) > 0.45) && sideWall.angle > -15) {
 				mState = FOLLOW_WALL;
 			}
 
 			// Execute Left Turn
-			update_cmd_vel(0.0, 1);
+			update_cmd_vel(0.0, 0.6);
 
 			break;
 		}
@@ -339,12 +339,12 @@ void WallFollower::update_callback()
 			// if (mDebug > 1) std::cout << ", side Angle: " << sideWall.angle << ", length: " << (sideWall.wallEnd - sideWall.wallStart) << ", End: " << sideWall.wallEnd;
 			if (mDebug > 1) std::cout << ", side Angle: " << sideWall.angle << ", length: " << (sideWall.wallEnd - sideWall.wallStart) << ", End: " << sideWall.wallEnd << ", @310: " << scan_data_[310];
 			// if (sideWall.angle < 7 && sideWall.angle > -10 && std::abs(sideWall.wallEnd - sideWall.wallStart) > 0.1 && sideWall.wallEnd > 0.05) {
-			if (scan_data_[310] < 1.5 * wallDistanceTarget) {
+			if (scan_data_[320] < 1.5 * wallDistanceTarget) {
 				mState = FOLLOW_WALL;
 			}
 
 			// Execute Right Turn
-			update_cmd_vel(0.2, -0.7);
+			update_cmd_vel(0.2, -0.9);
 
 			break;
 		}
@@ -352,6 +352,7 @@ void WallFollower::update_callback()
 		case STOP: {
 			if (mDebug > 1) std::cout << "RETURNED TO START";
 			update_cmd_vel(0.0, 0.0);
+			break;
 		}
 
 		default: {
