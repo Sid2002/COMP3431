@@ -100,7 +100,7 @@ void WallFollower::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
 		start_pose_ = pose;
 	}
 
-	if (curr_loc_.x - start_loc_.x > 0.5 || curr_loc_.y - start_loc_.y > 0.5 || curr_loc_.x - start_loc_.x < -0.5 || curr_loc_.y - start_loc_.y < -0.5) {
+	if (curr_loc_.x - start_loc_.x > STOP_END_DIST || curr_loc_.y - start_loc_.y > STOP_END_DIST || curr_loc_.x - start_loc_.x < -STOP_END_DIST || curr_loc_.y - start_loc_.y < -STOP_END_DIST) {
 		left_start_ = true;
 	}
 
@@ -259,6 +259,7 @@ void WallFollower::update_callback()
 
 	constexpr double wallDistanceTarget = 0.3;
 	constexpr double frontDistanceTarget = 0.4;
+	constexpr double yawTolerance = 0.3;
 
 	struct Wall sideWall = calculateWall(distances(270, 15));
 	struct Wall frontWall = calculateWall(distances(0, 7));
@@ -281,9 +282,9 @@ void WallFollower::update_callback()
 				mState = GAP_TURN_RIGHT;
 				break;
 			}
-			if (start_loc_.x - curr_loc_.x < 0.5 && start_loc_.x - curr_loc_.x > -0.5) {
-				if (start_loc_.y - curr_loc_.y < 0.5 && start_loc_.y - curr_loc_.y > -0.5) {
-					if (start_pose_.yaw - robot_pose_.yaw < 0.3 &&  start_pose_.yaw - robot_pose_.yaw > -0.3) {
+			if (start_loc_.x - curr_loc_.x < STOP_END_DIST && start_loc_.x - curr_loc_.x > -STOP_END_DIST) {
+				if (start_loc_.y - curr_loc_.y < STOP_END_DIST && start_loc_.y - curr_loc_.y > -STOP_END_DIST) {
+					if (start_pose_.yaw - robot_pose_.yaw < yawTolerance &&  start_pose_.yaw - robot_pose_.yaw > -yawTolerance) {
 						if (left_start_ == true) {
 							mState = STOP;
 						}
